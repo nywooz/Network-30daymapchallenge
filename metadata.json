@@ -1,0 +1,6 @@
+{
+  "name": "Britain Transit Network",
+  "description": "Interactive multi-modal regional rail, express coach, and feeder transit network map with flow visualization and shortest-path routing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

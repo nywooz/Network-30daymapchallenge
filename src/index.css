@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@layer base {
+  :root {
+    --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-sans: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.maplibregl-ctrl-attrib {
+  font-size: 10px !important;
+  background: rgba(15, 23, 42, 0.7) !important;
+  color: rgba(148, 163, 184, 0.85) !important;
+  backdrop-filter: blur(4px);
+}
+.maplibregl-ctrl-attrib a {
+  color: rgba(186, 230, 253, 0.9) !important;
+}
+html:not(.dark) .maplibregl-ctrl-attrib {
+  background: rgba(255, 255, 255, 0.8) !important;
+  color: rgba(71, 85, 105, 0.9) !important;
+}
+html:not(.dark) .maplibregl-ctrl-attrib a {
+  color: rgba(2, 132, 199, 0.95) !important;
+}

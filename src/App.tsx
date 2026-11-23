@@ -47,6 +47,7 @@ export type TransitMode = 'rail' | 'express' | 'feeder';
 export type HubTier = 'interchange' | 'stop';
 export type EdgeStyleMode = 'flow' | 'travelTime';
 export type InspectorTab = 'routing' | 'live' | 'resilience';
+export type BasemapId = 'dark' | 'light' | 'topo' | 'osm' | 'satellite';
 
 interface LiveOperatorStatus {
   id: string;
@@ -452,22 +453,122 @@ const MODE_CONFIG: Record<
   },
 };
 
-const CARTO_DARK_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
-const CARTO_LIGHT_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+const BASEMAP_CONFIGS: Record<
+  BasemapId,
+  {
+    label: string;
+    isDarkSurface: boolean;
+    backgroundColor: string;
+    tiles: string[];
+    overlayTiles?: string[];
+    tileSize: number;
+    maxzoom: number;
+    attribution: string;
+    rasterOpacity?: number;
+  }
+> = {
+  dark: {
+    label: 'Dark',
+    isDarkSurface: true,
+    backgroundColor: '#090d16',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'],
+    overlayTiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'],
+    tileSize: 256,
+    maxzoom: 16,
+    attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+  },
+  light: {
+    label: 'Light',
+    isDarkSurface: false,
+    backgroundColor: '#f1f5f9',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'],
+    overlayTiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}'],
+    tileSize: 256,
+    maxzoom: 16,
+    attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+  },
+  topo: {
+    label: 'Topo',
+    isDarkSurface: false,
+    backgroundColor: '#eef2f6',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}'],
+    tileSize: 256,
+    maxzoom: 18,
+    attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, OpenStreetMap contributors',
+  },
+  osm: {
+    label: 'OSM',
+    isDarkSurface: false,
+    backgroundColor: '#e5e7eb',
+    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+    tileSize: 256,
+    maxzoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+  },
+  satellite: {
+    label: 'Satellite',
+    isDarkSurface: true,
+    backgroundColor: '#090d16',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+    overlayTiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'],
+    tileSize: 256,
+    maxzoom: 18,
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+    rasterOpacity: 0.85,
+  },
+};
 
-function createFallbackStyle(isDark: boolean): maplibregl.StyleSpecification {
+function createBasemapStyle(basemapId: BasemapId): maplibregl.StyleSpecification {
+  const cfg = BASEMAP_CONFIGS[basemapId];
+  const sources: maplibregl.StyleSpecification['sources'] = {
+    'basemap-tiles': {
+      type: 'raster',
+      tiles: cfg.tiles,
+      tileSize: cfg.tileSize,
+      maxzoom: cfg.maxzoom,
+      attribution: cfg.attribution,
+    },
+  };
+
+  const layers: maplibregl.StyleSpecification['layers'] = [
+    {
+      id: 'background',
+      type: 'background',
+      paint: {
+        'background-color': cfg.backgroundColor,
+      },
+    },
+    {
+      id: 'basemap-layer',
+      type: 'raster',
+      source: 'basemap-tiles',
+      paint: {
+        'raster-opacity': cfg.rasterOpacity ?? 1,
+      },
+    },
+  ];
+
+  if (cfg.overlayTiles) {
+    sources['basemap-labels'] = {
+      type: 'raster',
+      tiles: cfg.overlayTiles,
+      tileSize: cfg.tileSize,
+      maxzoom: cfg.maxzoom,
+    };
+    layers.push({
+      id: 'basemap-labels-layer',
+      type: 'raster',
+      source: 'basemap-labels',
+      paint: {
+        'raster-opacity': 0.85,
+      },
+    });
+  }
+
   return {
     version: 8,
-    sources: {},
-    layers: [
-      {
-        id: 'background',
-        type: 'background',
-        paint: {
-          'background-color': isDark ? '#090d16' : '#f1f5f9',
-        },
-      },
-    ],
+    sources,
+    layers,
   };
 }
 
@@ -1065,6 +1166,7 @@ export default function App() {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('routing');
 
   // Basemap & UI Layout
+  const [basemapId, setBasemapId] = useState<BasemapId>('dark');
   const [isDark, setIsDark] = useState<boolean>(true);
   const [is3D, setIs3D] = useState<boolean>(true);
   const [controlsCollapsed, setControlsCollapsed] = useState<boolean>(false);
@@ -1413,6 +1515,7 @@ export default function App() {
       const isDefaultUk = dataset.name === INITIAL_UK_NETWORK.name;
 
       if (step.id === 'overview') {
+        setBasemapId('dark');
         setIsDark(true);
         setIs3D(true);
         setEnabledModes({ rail: true, express: true, feeder: true });
@@ -1423,6 +1526,7 @@ export default function App() {
         setSelectedNodeId(null);
         setInspectorTab('routing');
       } else if (step.id === 'live') {
+        setBasemapId('dark');
         setIsDark(true);
         setIs3D(true);
         setEnabledModes({ rail: true, express: true, feeder: true });
@@ -1432,6 +1536,7 @@ export default function App() {
         setSelectedNodeId(null);
         setInspectorTab('live');
       } else if (step.id === 'filtering') {
+        setBasemapId('dark');
         setIsDark(true);
         setIs3D(true);
         setEnabledModes({ rail: true, express: true, feeder: false });
@@ -1441,6 +1546,7 @@ export default function App() {
         setSelectedNodeId(null);
         setInspectorTab('routing');
       } else if (step.id === 'hops') {
+        setBasemapId('dark');
         setIsDark(true);
         setIs3D(true);
         setEnabledModes({ rail: true, express: true, feeder: true });
@@ -1450,6 +1556,7 @@ export default function App() {
         setSelectedNodeId(isDefaultUk ? 'manchester' : dataset.nodes[0]?.id ?? null);
         setInspectorTab('routing');
       } else if (step.id === 'routing') {
+        setBasemapId('dark');
         setIsDark(true);
         setIs3D(true);
         setSelectedNodeId(null);
@@ -1461,6 +1568,7 @@ export default function App() {
         }
         setInspectorTab('routing');
       } else if (step.id === 'resilience') {
+        setBasemapId('dark');
         setIsDark(true);
         setIs3D(true);
         setSelectedNodeId(null);
@@ -1477,10 +1585,12 @@ export default function App() {
         setDisruptedEdgeIds([]);
         setSelectedNodeId(null);
         setEdgeStyleMode('flow');
+        setBasemapId('light');
         setIsDark(false);
         setIs3D(false);
         setInspectorTab('routing');
       } else if (step.id === 'interop') {
+        setBasemapId('dark');
         setIsDark(true);
         setIs3D(true);
         setDisruptedEdgeIds([]);
@@ -1534,6 +1644,7 @@ export default function App() {
     setTourStepIndex(null);
     setTourProgress(0);
     setDisruptedEdgeIds([]);
+    setBasemapId('dark');
     setIsDark(true);
     setIs3D(true);
   };
@@ -1992,20 +2103,12 @@ export default function App() {
 
     const map = new maplibregl.Map({
       container,
-      style: CARTO_DARK_STYLE,
+      style: createBasemapStyle('dark'),
       center: [-2.35, 53.55],
       zoom: 5.55,
       pitch: 26,
       bearing: -4,
       attributionControl: { compact: true },
-    });
-
-    let fallbackApplied = false;
-    map.on('error', () => {
-      if (!fallbackApplied) {
-        fallbackApplied = true;
-        map.setStyle(createFallbackStyle(isDarkRef.current));
-      }
     });
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: true, visualizePitch: true }), 'bottom-left');
@@ -2037,8 +2140,8 @@ export default function App() {
     }
     const map = mapRef.current;
     if (!map) return;
-    map.setStyle(isDark ? CARTO_DARK_STYLE : CARTO_LIGHT_STYLE);
-  }, [isDark]);
+    map.setStyle(createBasemapStyle(basemapId));
+  }, [basemapId]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -2265,7 +2368,11 @@ export default function App() {
               </button>
               <button
                 type="button"
-                onClick={() => setIsDark((v) => !v)}
+                onClick={() => {
+                  const nextDark = !isDark;
+                  setIsDark(nextDark);
+                  setBasemapId(nextDark ? 'dark' : 'light');
+                }}
                 title={isDark ? 'Switch to light basemap' : 'Switch to dark basemap'}
                 className="rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white transition-colors"
                 aria-label="Toggle basemap theme"
@@ -2409,6 +2516,37 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* Basemap Selector */}
+            <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800/80">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  Basemap
+                </span>
+                <span className="text-[11px] font-mono text-slate-400">
+                  {BASEMAP_CONFIGS[basemapId].label}
+                </span>
+              </div>
+              <div className="grid grid-cols-5 gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-950/80">
+                {(['dark', 'light', 'topo', 'osm', 'satellite'] as BasemapId[]).map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setBasemapId(id);
+                      setIsDark(BASEMAP_CONFIGS[id].isDarkSurface);
+                    }}
+                    className={`rounded-md px-1.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                      basemapId === id
+                        ? 'bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {BASEMAP_CONFIGS[id].label === 'Satellite' ? 'Sat' : BASEMAP_CONFIGS[id].label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Minimum Flow Threshold Slider */}
